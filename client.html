@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ta séance</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#16181d; --ink-2:#1e2128; --ink-3:#282c35;
+    --paper:#fffdf9; --bone-dim:#e9e4d8; --line:#343945; --line-soft:#e5dfd0;
+    --text-hi:#f2f0ea; --text-dim:#a3a7b3;
+    --ink-text:#20222a; --ink-text-dim:#6b6f7c;
+    --lime:#c6ff3d; --good:#4f7a63;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--text-hi);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
+  h1,h2,.display{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin:0;}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 60px;}
+  .header{text-align:center;margin-bottom:18px;}
+  .header .eyebrow{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--lime);display:block;margin-bottom:6px;}
+  .header h1{font-size:24px;color:var(--text-hi);}
+  .header .meta{font-size:13px;color:var(--text-dim);margin-top:6px;}
+  #state-msg{text-align:center;color:var(--text-dim);padding:60px 20px;font-size:15px;}
+
+  .block{background:var(--paper);color:var(--ink-text);border-radius:12px;border:1px solid var(--line-soft);margin-bottom:14px;overflow:hidden;}
+  .block-head{display:flex;align-items:stretch;}
+  .tag{width:42px;flex-shrink:0;color:white;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:800;font-size:17px;clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);}
+  .btitle{padding:10px 12px;font-weight:700;font-size:15px;display:flex;align-items:center;flex:1;font-family:'Barlow Condensed';}
+  .bbody{display:flex;gap:10px;padding:12px;}
+  .bimg{width:64px;height:64px;border-radius:8px;object-fit:contain;flex-shrink:0;background:var(--bone-dim);border:1px solid var(--line-soft);padding:3px;}
+  .bimg.placeholder{display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink-text-dim);text-align:center;}
+  .plan{font-size:11px;color:var(--ink-text-dim);margin-bottom:2px;}
+
+  .setrow{display:grid;grid-template-columns:26px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px;}
+  .setrow .snum{font-size:12px;font-weight:700;color:var(--ink-text-dim);}
+  .setrow input{
+    width:100%;background:#f6f3ec;border:1px solid var(--line-soft);border-radius:7px;
+    padding:8px 8px;font-size:14px;color:var(--ink-text);font-family:'Inter';
+  }
+  .setrow input:focus{outline:none;border-color:#5b6b85;}
+  .fieldlabels{display:grid;grid-template-columns:26px 1fr 1fr;gap:6px;font-size:9.5px;color:var(--ink-text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;font-weight:700;}
+
+  .remark{padding:0 12px 12px;}
+  .remark label{display:block;font-size:10.5px;color:var(--ink-text-dim);text-transform:uppercase;letter-spacing:0.04em;font-weight:700;margin-bottom:5px;}
+  .remark textarea{
+    width:100%;background:#f6f3ec;border:1px solid var(--line-soft);border-radius:7px;
+    padding:8px 10px;font-size:13.5px;color:var(--ink-text);font-family:'Inter';resize:vertical;min-height:44px;
+  }
+  .remark textarea:focus{outline:none;border-color:#5b6b85;}
+
+  #status-bar{
+    position:fixed;bottom:0;left:0;right:0;background:var(--ink-2);border-top:1px solid var(--line);
+    padding:10px 16px;text-align:center;font-size:12.5px;color:var(--text-dim);
+  }
+  #status-bar.saved{color:var(--good);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <span class="eyebrow">Ta séance du jour</span>
+    <h1 id="session-title">Chargement…</h1>
+    <div class="meta" id="session-meta"></div>
+  </div>
+  <div id="state-msg">Chargement de ta séance…</div>
+  <div id="blocks"></div>
+</div>
+<div id="status-bar">Rempli automatiquement enregistré au fur et à mesure</div>
+
+<script>
+function qs(name) { return new URLSearchParams(location.search).get(name); }
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatDateFR(iso) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  if (!y||!m||!d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+let docRef = null;
+let clientFill = {};
+let saveTimer = null;
+
+function setStatus(text, saved) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = text;
+  bar.classList.toggle('saved', !!saved);
+}
+
+function scheduleSave() {
+  setStatus('Enregistrement…', false);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 700);
+}
+
+async function doSave() {
+  try {
+    await docRef.update({ clientFill, updatedAt: Date.now() });
+    setStatus('✓ Enregistré', true);
+  } catch (e) {
+    console.error(e);
+    setStatus("Erreur d'enregistrement — vérifie ta connexion", false);
+  }
+}
+
+function ensureBlockFill(i) {
+  if (!clientFill[i]) clientFill[i] = { remark: '', sets: [] };
+  return clientFill[i];
+}
+
+function blockHTML(b, i) {
+  const targetSets = b.sets.map((s, j) => ({ ...s, num: j + 1 })).filter(s => s.reps || s.charge || s.repos || s.tempo);
+  const existingFill = clientFill[i] || { remark: '', sets: [] };
+  const imgHtml = b.image
+    ? `<img class="bimg" src="${escapeHtml(b.image)}" alt="">`
+    : `<div class="bimg placeholder">Pas d'image</div>`;
+
+  return `
+  <div class="block">
+    <div class="block-head">
+      <div class="tag" style="background:${b.color || '#5b6b85'};">${escapeHtml(b.label)}</div>
+      <div class="btitle">${escapeHtml(b.exercise)}</div>
+    </div>
+    <div class="bbody">
+      ${imgHtml}
+      <div style="flex:1;min-width:0;">
+        <div class="fieldlabels"><span></span><span>Charge utilisée</span><span>Répétitions faites</span></div>
+        ${targetSets.map(s => {
+          const fs = (existingFill.sets && existingFill.sets[s.num - 1]) || {};
+          return `
+          <div class="setrow">
+            <div class="snum">S${s.num}</div>
+            <input type="text" inputmode="decimal" placeholder="${s.charge ? 'prévu ' + escapeHtml(s.charge) : 'ex: 42kg'}" data-block="${i}" data-set="${s.num - 1}" data-field="charge" value="${escapeHtml(fs.charge || '')}">
+            <input type="text" inputmode="numeric" placeholder="${s.reps ? 'prévu ' + escapeHtml(s.reps) : 'ex: 8'}" data-block="${i}" data-set="${s.num - 1}" data-field="reps" value="${escapeHtml(fs.reps || '')}">
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="remark">
+      <label>Ressenti / remarque (optionnel)</label>
+      <textarea rows="2" data-block="${i}" data-field="remark" placeholder="Ex : douleur à l'épaule sur le dernier exercice…">${escapeHtml(existingFill.remark || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+function attachInputListeners() {
+  document.querySelectorAll('.setrow input').forEach(inp => {
+    inp.oninput = (e) => {
+      const b = +e.target.dataset.block, j = +e.target.dataset.set, f = e.target.dataset.field;
+      const fill = ensureBlockFill(b);
+      while (fill.sets.length <= j) fill.sets.push({});
+      fill.sets[j][f] = e.target.value;
+      scheduleSave();
+    };
+  });
+  document.querySelectorAll('textarea[data-field="remark"]').forEach(ta => {
+    ta.oninput = (e) => {
+      const b = +e.target.dataset.block;
+      ensureBlockFill(b).remark = e.target.value;
+      scheduleSave();
+    };
+  });
+}
+
+async function init() {
+  const sid = qs('sid');
+  const cfgB64 = qs('cfg');
+  if (!sid || !cfgB64) {
+    document.getElementById('state-msg').textContent = "Lien invalide ou incomplet.";
+    return;
+  }
+  let firebaseConfig;
+  try {
+    firebaseConfig = JSON.parse(decodeURIComponent(escape(atob(cfgB64))));
+  } catch (e) {
+    document.getElementById('state-msg').textContent = "Lien invalide (configuration illisible).";
+    return;
+  }
+  if (typeof firebase === 'undefined') {
+    document.getElementById('state-msg').textContent = "Impossible de charger la connexion — vérifie ta connexion internet.";
+    return;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    docRef = db.collection('client-logs').doc(sid);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      document.getElementById('state-msg').textContent = "Cette séance n'est plus disponible.";
+      return;
+    }
+    const data = snap.data();
+    clientFill = data.clientFill || {};
+    document.getElementById('session-title').textContent = data.sessionTitle || 'Séance';
+    document.getElementById('session-meta').textContent =
+      [data.clientName, formatDateFR(data.date), data.zone].filter(Boolean).join(' · ');
+    document.getElementById('state-msg').style.display = 'none';
+    document.getElementById('blocks').innerHTML = (data.blocks || []).map((b, i) => b.exercise ? blockHTML(b, i) : '').join('');
+    attachInputListeners();
+    setStatus('Prêt — remplis au fur et à mesure de ta séance', false);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('state-msg').textContent = "Erreur de chargement. Vérifie ta connexion et réessaie.";
+  }
+}
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
