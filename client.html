@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ta séance d'entraînement</title>
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="🏋️ Ta séance d'entraînement">
+<meta property="og:description" content="Clique pour voir le détail de ta séance et remplir tes charges/répétitions au fur et à mesure.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://lilpaak.github.io/creation-seances/apple-touch-icon.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="🏋️ Ta séance d'entraînement">
+<meta name="twitter:description" content="Clique pour voir le détail de ta séance et remplir tes charges/répétitions au fur et à mesure.">
+<meta name="twitter:image" content="https://lilpaak.github.io/creation-seances/apple-touch-icon.png">
+<meta name="description" content="Ta séance d'entraînement du jour.">
+<meta name="theme-color" content="#2c3446">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#16181d; --ink-2:#1e2128; --ink-3:#282c35;
+    --paper:#fffdf9; --bone-dim:#e9e4d8; --line:#343945; --line-soft:#e5dfd0;
+    --text-hi:#f2f0ea; --text-dim:#a3a7b3;
+    --ink-text:#20222a; --ink-text-dim:#6b6f7c;
+    --lime:#c6ff3d; --good:#4f7a63;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink);color:var(--text-hi);font-family:'Inter',system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
+  h1,h2,.display{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin:0;}
+  .wrap{max-width:780px;margin:0 auto;padding:20px 16px 60px;}
+  .header{text-align:center;margin-bottom:18px;}
+  .header .eyebrow{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--lime);display:block;margin-bottom:6px;}
+  .header h1{font-size:24px;color:var(--text-hi);}
+  .header .meta{font-size:13px;color:var(--text-dim);margin-top:6px;}
+  #state-msg{text-align:center;color:var(--text-dim);padding:60px 20px;font-size:15px;}
+
+  #blocks{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:680px){ #blocks{grid-template-columns:1fr;} }
+
+  .block{background:var(--paper);color:var(--ink-text);border-radius:12px;border:1px solid var(--line-soft);overflow:hidden;}
+  .block-head{display:flex;align-items:stretch;}
+  .tag{width:42px;flex-shrink:0;color:white;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:800;font-size:17px;clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);}
+  .btitle{padding:10px 12px;font-weight:700;font-size:15px;display:flex;align-items:center;flex:1;font-family:'Barlow Condensed';line-height:1.15;}
+  .bimg-row{display:flex;gap:10px;padding:12px 12px 4px;}
+  .bimg{width:58px;height:58px;border-radius:8px;object-fit:contain;flex-shrink:0;background:var(--bone-dim);border:1px solid var(--line-soft);padding:3px;}
+  .bimg.placeholder{display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink-text-dim);text-align:center;}
+  .coach-remark{
+    font-size:11.5px;color:var(--ink-text-dim);font-style:italic;flex:1;align-self:center;
+    background:#f6f3ec;border-radius:7px;padding:6px 9px;
+  }
+
+  .sets-wrap{padding:8px 12px 4px;}
+  .setblock{border-top:1px solid #f0ecdf;padding:8px 0;}
+  .setblock:first-child{border-top:none;}
+  .set-plan{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:10.5px;color:var(--ink-text-dim);margin-bottom:6px;}
+  .set-plan b{color:var(--ink-text);font-weight:700;}
+  .set-plan .snum-badge{
+    background:var(--bone-dim);color:var(--ink-text);font-weight:800;font-size:10px;
+    border-radius:4px;padding:1px 6px;margin-right:2px;
+  }
+  .setrow{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .setrow .fl{font-size:9px;color:var(--ink-text-dim);text-transform:uppercase;letter-spacing:0.03em;font-weight:700;margin-bottom:3px;display:block;}
+  .setrow input{
+    width:100%;background:#f6f3ec;border:1px solid var(--line-soft);border-radius:7px;
+    padding:7px 8px;font-size:14px;color:var(--ink-text);font-family:'Inter';
+  }
+  .setrow input:focus{outline:none;border-color:#5b6b85;}
+
+  .remark{padding:8px 12px 12px;}
+  .remark label{display:block;font-size:10.5px;color:var(--ink-text-dim);text-transform:uppercase;letter-spacing:0.04em;font-weight:700;margin-bottom:5px;}
+  .remark textarea{
+    width:100%;background:#f6f3ec;border:1px solid var(--line-soft);border-radius:7px;
+    padding:8px 10px;font-size:13.5px;color:var(--ink-text);font-family:'Inter';resize:vertical;min-height:40px;
+  }
+  .remark textarea:focus{outline:none;border-color:#5b6b85;}
+
+  #status-bar{
+    position:fixed;bottom:0;left:0;right:0;background:var(--ink-2);border-top:1px solid var(--line);
+    padding:10px 16px;text-align:center;font-size:12.5px;color:var(--text-dim);
+  }
+  #status-bar.saved{color:var(--good);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <span class="eyebrow">Ta séance du jour</span>
+    <h1 id="session-title">Chargement…</h1>
+    <div class="meta" id="session-meta"></div>
+  </div>
+  <div id="state-msg">Chargement de ta séance…</div>
+  <div id="blocks"></div>
+</div>
+<div id="status-bar">Rempli automatiquement enregistré au fur et à mesure</div>
+
+<script>
+function qs(name) { return new URLSearchParams(location.search).get(name); }
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatDateFR(iso) {
+  if (!iso) return '';
+  const [y,m,d] = iso.split('-');
+  if (!y||!m||!d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+let docRef = null;
+let clientFill = {};
+let saveTimer = null;
+
+function setStatus(text, saved) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = text;
+  bar.classList.toggle('saved', !!saved);
+}
+
+function scheduleSave() {
+  setStatus('Enregistrement…', false);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 700);
+}
+
+async function doSave() {
+  try {
+    await docRef.update({ clientFill, updatedAt: Date.now() });
+    setStatus('✓ Enregistré', true);
+  } catch (e) {
+    console.error(e);
+    setStatus("Erreur d'enregistrement — vérifie ta connexion", false);
+  }
+}
+
+function ensureBlockFill(i) {
+  if (!clientFill[i]) clientFill[i] = { remark: '', sets: [] };
+  return clientFill[i];
+}
+
+function blockHTML(b, i) {
+  const targetSets = b.sets.map((s, j) => ({ ...s, num: j + 1 })).filter(s => s.reps || s.charge || s.repos || s.tempo);
+  const existingFill = clientFill[i] || { remark: '', sets: [] };
+  const imgHtml = b.image
+    ? `<img class="bimg" src="${escapeHtml(b.image)}" alt="">`
+    : `<div class="bimg placeholder">Pas d'image</div>`;
+
+  return `
+  <div class="block">
+    <div class="block-head">
+      <div class="tag" style="background:${b.color || '#5b6b85'};">${escapeHtml(b.label)}</div>
+      <div class="btitle">${escapeHtml(b.exercise)}</div>
+    </div>
+    <div class="bimg-row">
+      ${imgHtml}
+      ${b.remarks ? `<div class="coach-remark">💬 ${escapeHtml(b.remarks)}</div>` : ''}
+    </div>
+    <div class="sets-wrap">
+      ${targetSets.map(s => {
+        const fs = (existingFill.sets && existingFill.sets[s.num - 1]) || {};
+        const planParts = [];
+        if (s.reps) planParts.push(escapeHtml(s.reps));
+        if (s.charge) planParts.push('<b>' + escapeHtml(s.charge) + '</b>');
+        if (s.repos) planParts.push('repos ' + escapeHtml(s.repos));
+        if (s.tempo) planParts.push('tempo ' + escapeHtml(s.tempo));
+        return `
+        <div class="setblock">
+          <div class="set-plan"><span class="snum-badge">S${s.num}</span> ${planParts.join(' · ')}</div>
+          <div class="setrow">
+            <div>
+              <span class="fl">Charge utilisée</span>
+              <input type="text" inputmode="decimal" placeholder="ex : 42kg" data-block="${i}" data-set="${s.num - 1}" data-field="charge" value="${escapeHtml(fs.charge || '')}">
+            </div>
+            <div>
+              <span class="fl">Répétitions faites</span>
+              <input type="text" inputmode="numeric" placeholder="ex : 8" data-block="${i}" data-set="${s.num - 1}" data-field="reps" value="${escapeHtml(fs.reps || '')}">
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="remark">
+      <label>Ton ressenti (optionnel)</label>
+      <textarea rows="2" data-block="${i}" data-field="remark" placeholder="Ex : douleur à l'épaule sur le dernier exercice…">${escapeHtml(existingFill.remark || '')}</textarea>
+    </div>
+  </div>`;
+}
+
+function attachInputListeners() {
+  document.querySelectorAll('.setrow input').forEach(inp => {
+    inp.oninput = (e) => {
+      const b = +e.target.dataset.block, j = +e.target.dataset.set, f = e.target.dataset.field;
+      const fill = ensureBlockFill(b);
+      while (fill.sets.length <= j) fill.sets.push({});
+      fill.sets[j][f] = e.target.value;
+      scheduleSave();
+    };
+  });
+  document.querySelectorAll('textarea[data-field="remark"]').forEach(ta => {
+    ta.oninput = (e) => {
+      const b = +e.target.dataset.block;
+      ensureBlockFill(b).remark = e.target.value;
+      scheduleSave();
+    };
+  });
+}
+
+// Firebase config for this coach's project — public-safe client keys
+// (security is enforced by Firestore rules, not by hiding this value).
+// If you ever create a new Firebase project, update this object.
+const FIREBASE_CONFIG = {
+  "apiKey": "AIzaSyBxhoaF1xuA56CHONqUfh2DW93CcsipGQY",
+  "authDomain": "creation-seances.firebaseapp.com",
+  "projectId": "creation-seances",
+  "storageBucket": "creation-seances.firebasestorage.app",
+  "messagingSenderId": "428154178640",
+  "appId": "1:428154178640:web:ebcdaf1e0b1557b3119555"
+};
+
+async function init() {
+  const sid = qs('sid');
+  if (!sid) {
+    document.getElementById('state-msg').textContent = "Lien invalide ou incomplet.";
+    return;
+  }
+  if (typeof firebase === 'undefined') {
+    document.getElementById('state-msg').textContent = "Impossible de charger la connexion — vérifie ta connexion internet.";
+    return;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    const db = firebase.firestore();
+    docRef = db.collection('client-logs').doc(sid);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      document.getElementById('state-msg').textContent = "Cette séance n'est plus disponible.";
+      return;
+    }
+    const data = snap.data();
+    clientFill = data.clientFill || {};
+    document.getElementById('session-title').textContent = data.sessionTitle || 'Séance';
+    document.getElementById('session-meta').textContent =
+      [data.clientName, formatDateFR(data.date), data.zone].filter(Boolean).join(' · ');
+    document.getElementById('state-msg').style.display = 'none';
+    document.getElementById('blocks').innerHTML = (data.blocks || []).map((b, i) => b.exercise ? blockHTML(b, i) : '').join('');
+    attachInputListeners();
+    setStatus('Prêt — remplis au fur et à mesure de ta séance', false);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('state-msg').textContent = "Erreur de chargement. Vérifie ta connexion et réessaie.";
+  }
+}
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
